@@ -1,0 +1,20 @@
+.container{
+  padding-top: 2%;
+}
+
+.brand-logo{
+  padding-left: 3% !important;
+  font-weight: 300;
+}
+
+.colomn-titles{
+  font-family: 400 !important;
+}
+
+.card-title{
+  font-size: 1.4em;
+}
+
+.card-content{
+  padding-top: 14px;
+}

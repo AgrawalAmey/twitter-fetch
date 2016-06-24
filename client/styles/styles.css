@@ -1,5 +1,9 @@
+body{
+  overflow: hidden;
+}
+
 .container{
-  padding-top: 2%;
+  padding-top: 5%;
 }
 
 .brand-logo{
@@ -17,4 +21,9 @@
 
 .card-content{
   padding-top: 14px;
+}
+
+.tweet-col {
+  margin-top: 5%;
+  height: 72%;
 }

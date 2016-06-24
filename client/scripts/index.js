@@ -1,6 +1,7 @@
+var sb = null;
+
 function getData(){
-    $.getJSON('./scripts/tweets.json',function(data){
-        console.log(data);
+    $.getJSON('/get_tweets',function(data){
         $.each(data.data, function(i,data){
         	var content = '';
 			content += "<div class='card-panel grey lighten-5 z-depth-1'>";
@@ -19,9 +20,31 @@ function getData(){
 			content += "</div>";
             $(content).appendTo('#'+ data.sentiment + '-col');
         });
-    });  
+    });
+    sb.update();  
 }
 
 $(document).ready(function(){
+	sb = ScrollBars();
+
 	getData();
+	
+	// Refresh every 6 Hrs
+	setInterval(function(){
+		getData();
+	}, 86400000);
 });
+
+function ScrollBars(){
+	this.containers = document.getElementsByClassName('tweet-col');
+	//Start
+	$.each(this.containers, function(index, container){
+		Ps.initialize(container);
+	});
+	//Update
+	this.update = function(){
+		$.each(this.containers, function(index, container){
+			Ps.update(container);
+		});
+	}
+}

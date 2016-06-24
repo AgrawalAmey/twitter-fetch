@@ -3,96 +3,133 @@ var Twitter = require('twitter'),
     mongoose = require('mongoose'),
     express = require('express');
 
-var client = new Twitter(credentials);
 
-//Db
-mongoose.connect('mongodb://localhost/tweet-fetch');
+function MongoConnection(){
+    var self = this;
 
-// Create a new schema for our tweet data
-var tweetSchema = new mongoose.Schema({
-    twid: {
-        type: String,
-        unique: true,
-    },
-    author: String,        
-    avatar: String,        
-    body: String,         
-    date: Date,         
-    screenname: String,        
-    sentiment: String,        
-},{strict: true});
+    //Estabilishing connection
+    mongoose.connect('mongodb://127.0.0.1/tweet-fetch');
 
-var Tweet = mongoose.model('tweet', tweetSchema);
+    // Create a new schema for our tweet data
+    this.tweetSchema = new mongoose.Schema({
+        twid: {
+            type: String,
+            unique: true,
+        },
+        author: String,        
+        avatar: String,        
+        body: String,         
+        date: Date,         
+        screenname: String,        
+        sentiment: String,        
+    },{strict: true});
 
-// Get possitive tweets
-client.get('search/tweets', {q: 'bhel -chat -spicy -puri -sweet -ate -eat -food -chinese -corn -pavbhaji -delicious -tasty lang:en :)'}, function(error, tweets, response) {
-    processTweets(tweets, 'pos', error);   
-});
+    //Model object
+    this.Tweet = mongoose.model('tweet', this.tweetSchema);
 
-//Get netagive tweets
-client.get('search/tweets', {q: 'bhel -chat -spicy -puri -sweet -ate -eat -food -chinese -corn -pavbhaji -delicious -tasty lang:en :('}, function(error, tweets, response) {
-    processTweets(tweets, 'neg', error);  
-});
-
-//Get questions
-client.get('search/tweets', {q: 'bhel -chat -spicy -puri -sweet -ate -eat -food -chinese -corn -pavbhaji -delicious -tasty lang:en ?'}, function(error, tweets, response) {
-    processTweets(tweets, 'que', error);  
-});
-
-function processTweets(tweets, sentiment, error){
-    if(error){
-        console.log("Something went wrong :( \n" + error);
-        return;
-    }
-    tweets.statuses.forEach(function(data){
-        var tweet = {
-            twid: data['id'],
-            author: data['user']['name'],
-            avatar: data['user']['profile_image_url'],
-            body: data['text'],
-            date: data['created_at'],
-            screenname: data['user']['screen_name'],
+    //Format a raw tweet
+    this.formatTweet = function(tweet, sentiment){
+        var tweetSchema = {
+            twid: tweet['id'],
+            author: tweet['user']['name'],
+            avatar: tweet['user']['profile_image_url'],
+            body: tweet['text'],
+            date: tweet['created_at'],
+            screenname: tweet['user']['screen_name'],
             sentiment: sentiment
         }
+        return this.Tweet(tweetSchema);
+    }
 
-        // Create a new model instance with our object
-        var tmp = new Tweet(tweet);
-        tmp.save(function(err, docs) {
+    //Create a new model instance with our object
+    this.saveTweet = function(tweet){
+        tweet.save(function(err, data) {
             if (err) {
                 console.log("Something went wrong :(  \n" + err);
+                return;
             } else {
                 console.log('Tweet successfully stored.');
             }
+        });       
+    };
+    //Get tweets from Db
+    this.getTweets = function(req, res){
+        self.Tweet.find({}, function(err,data){
+            if(err) {
+                console.log("Something went wrong :(  \n" + err);
+                return;
+            
+            }else{
+                res.json({data}); 
+            }
+        });  
+    }
+}
+
+function TweetFetcher(){
+    this.client = new Twitter(credentials);
+    this.queryString = 'bhel -chat -spicy -puri -sweet -ate -eat -food -chinese -corn -pavbhaji -delicious -tasty lang:en ';  
+    
+    //Convert to mongo model instance and save it
+    this.processTweets = function(tweets, sentiment, error){
+        if(error){
+            console.log("Something went wrong :( \n" + error);
+            return;
+        }
+        tweets.statuses.forEach(function(data){
+            data = mongoConnection.formatTweet(data, sentiment);
+            mongoConnection.saveTweet(data);
         });
+    };
+
+    //Tweet fetcher
+    this.getTweets = function(){
+        var self = this;
+        // Get possitive tweets
+        this.client.get('search/tweets', {q: this.queryString + ':)'}, function(error, tweets, response) {
+            self.processTweets(tweets, 'pos', error);   
+        });
+        
+        //Get netagive tweets
+        this.client.get('search/tweets', {q: this.queryString + ':('}, function(error, tweets, response) {
+            self.processTweets(tweets, 'neg', error);  
+        });
+        
+        //Get questions
+        this.client.get('search/tweets', {q: this.queryString + '?'}, function(error, tweets, response) {
+            self.processTweets(tweets, 'que', error);  
+        });
+    };
+}
+
+// Express server
+function startExpressServer(){
+    var app = express();
+    
+    //All static file
+    app.use(express.static('./client/'));
+    
+    //For landing
+    app.get('/', function(req, res){
+        res.render('./client/index.html');
+    })
+    
+    //To get tweets json
+    app.get('/get_tweets', mongoConnection.getTweets);
+
+    //Port number
+    app.listen(3000, function () {
+      console.log('Listening on port 3000!');
     });
 }
 
-function getTweets(){
-    Tweet.find({}, function(err,docs){
-        if(err) {
-            console.log("Something went wrong :(  \n" + err);
-          
-        }else{
-            return docs;   
-        }
-    });  
-}
+mongoConnection = new MongoConnection();
+tweetFetcher = new TweetFetcher();
+tweetFetcher.getTweets();
+startExpressServer();
 
-console.log(getTweets());
+//Get tweets every 10 mins
+setInterval(function(){
+    tweetFetcher.getTweets();
+}, 600000);
 
-// Express server
-var app = express();
-
-app.use(express.static('./client/'));
-
-app.get('/', function(req, res){
-    res.render('./client/index.html');
-})
-
-app.get('/get_tweets', function(req, res){
-    res.json(getTweets);
-});
-
-app.listen(3000, function () {
-  console.log('Listening on port 3000!');
-});
